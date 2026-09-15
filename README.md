@@ -9,119 +9,107 @@ You have to experience it to understand the value — give it a try!
 
 Agents can vocalize milestone updates, completion alerts, questions, plans, and build errors without you needing to stare at terminal logs.
 
-A big thanks to the engineers and researchers behind the open-weight engines that power this:
-- **[Kyutai Labs](https://kyutai.org)** ([GitHub](https://github.com/kyutai-labs/pocket-tts)) — creators of Pocket-TTS and the Mimi audio codec.
-- **[hexgrad](https://github.com/hexgrad/kokoro)** ([Hugging Face](https://huggingface.co/hexgrad/Kokoro-82M)) — creators of Kokoro-82M.
-- **[KittenML](https://kittenml.com)** ([GitHub](https://github.com/KittenML/KittenTTS)) — creators of Kitten TTS.
-
-This skill is open to contributions with your favorite TTS engines. I personally really love the Kyutai voices!
+A big thanks to the open-source creators:
+- **[Kyutai Labs](https://kyutai.org)** ([GitHub](https://github.com/kyutai-labs/pocket-tts)) — Pocket-TTS and Mimi audio codec.
+- **[hexgrad](https://github.com/hexgrad/kokoro)** ([Hugging Face](https://huggingface.co/hexgrad/Kokoro-82M)) — Kokoro-82M.
+- **[KittenML](https://kittenml.com)** ([GitHub](https://github.com/KittenML/KittenTTS)) — Kitten TTS.
 
 ---
 
-## ⚡ Benchmarks
+## ⚡ Real-World Benchmarks & Hardware Reality
 
-Tested locally on consumer laptop hardware under active battery power:
-- **System Specs**: Intel Core i3-10110U (2 cores, 4 threads @ 2.10 GHz), 8 GB RAM, Windows 11 Home.
-- **Operating Mode**: Windows Power Saver / Best Power Efficiency (no discrete GPU, CPU-only).
+Measured on an **Intel Core i3-10110U (2 cores, 4 threads @ 2.10 GHz), 8 GB total RAM, Windows 11 Home** under battery power / power efficiency mode, with typical developer background apps running (IDE, local LLMs, browser):
 
-| Engine | Model Size | Working RAM | RTF (Real-Time Factor) | Speed (CPU) | Audio Specs | Ideal Use Case |
-| :--- | :---: | :---: | :---: | :---: | :---: | :--- |
-| **Pocket-TTS** (Kyutai) | ~150 MB | ~300 MiB | **0.15 – 0.22** | 4x–7x real-time | 24 kHz mono | **Top Pick**: Rich conversational cadence, zero-shot voice cloning. |
-| **Kokoro-82M** (hexgrad) | ~82 MB | ~150 MiB | **0.18 – 0.30** | 3x–6x real-time | 24 kHz mono | **Studio Fidelity**: 54+ voices across 8 languages. |
-| **Kitten TTS** (KittenML) | **< 25 MB** | **~30 MiB** | **0.17 – 0.20** | 5x–6x real-time | 24 kHz mono | **Minimal Footprint**: Runs in pure ONNX, sub-35 MB RAM. |
+| Engine | Model Weights | Free RAM Required | Real-World Generation Time (15-word phrase) | Audio Output | What to Expect |
+| :--- | :---: | :---: | :---: | :---: | :--- |
+| **Pocket-TTS** (Kyutai) | ~150 MB | **~1.5 GB – 2.0 GB** | **~12s – 18s** (on a dual-core i3 under memory load) | 24 kHz mono | **Top Quality & Personality**: Rich conversational inflections, zero-shot voice cloning. Requires CPU headroom for real-time speed. |
+| **Kokoro-82M** (hexgrad) | ~82 MB | **~800 MB – 1.2 GB** | **~4s – 8s** | 24 kHz mono | **Studio Fidelity**: 54+ voices across 8 languages. Fast on CPU, high consistency. |
+| **Kitten TTS** (KittenML) | **< 25 MB** | **~300 MB – 500 MB** | **~1.3s – 2.5s** | 24 kHz mono | **Lightweight Champion**: Runs via pure ONNX. Set `speed=1.25` for natural human speaking rate. |
 
-*Note: In Kitten TTS, an internal speed prior multiplier of 0.8 is applied by default in model weights. Set `speed=1.25` for natural human speaking rate.*
+> **Honest Engineering Note**: On high-spec machines (Apple M-series or modern 8+ core AMD/Intel chips), Pocket-TTS runs at **4x–8x real-time** (sub-second synthesis). On entry-level dual-core laptops with constrained RAM (<1 GB free), heavy PyTorch engines like Pocket-TTS slow down, whereas lightweight ONNX models (Kitten TTS) remain snappy.
 
 ---
 
-## ✨ Features
+## 💾 Model Storage & Where Files Live
 
-- **⚡ It's Asynchronous!**: Audio synthesis and playback run asynchronously in the background (`WaitMsBeforeAsync: 500`). The agent immediately moves on to its next tool call without waiting for audio to finish playing.
-- **🔒 Multi-Agent Speech Handling**: Built-in PID/file-lease concurrency lock (`speak.lock`) prevents multiple agents in a swarm from talking over one another.
-- **🎧 High-Fidelity Local TTS**: Zero cloud API keys, zero external network calls during synthesis:
-  - **[Pocket-TTS](https://kyutai.org)** ([GitHub](https://github.com/kyutai-labs/pocket-tts)): 100M parameters, CPU-first, natural conversational inflection, and zero-shot voice cloning from a 5-second audio sample.
-  - **[Kokoro-82M](https://github.com/hexgrad/kokoro)** ([Hugging Face](https://huggingface.co/hexgrad/Kokoro-82M)): 82M parameters, 54+ studio voices across 8 languages.
-  - **[Kitten TTS](https://kittenml.com)** ([GitHub](https://github.com/KittenML/KittenTTS)): Ultra-lightweight ONNX runtime under 25 MB on disk, running in ~30 MiB RAM.
+All speech synthesis models run 100% locally on your machine. No telemetry or audio ever leaves your system.
+
+### 1. Default Download Directories
+By default, the Python and Hugging Face ecosystems cache downloaded model weights to standard user cache folders:
+
+- **Windows**: `C:\Users\<username>\.cache\huggingface\hub\`
+- **macOS / Linux**: `~/.cache/huggingface/hub/`
+
+### 2. Customizing Storage Location
+If you want to store weights on an external drive or custom folder, set the standard environment variable before running your TTS server or agent:
+
+```bash
+# Windows (PowerShell)
+$env:HF_HOME = "D:\AI_Models\huggingface"
+
+# macOS / Linux (Bash/Zsh)
+export HF_HOME="/Volumes/ExternalSSD/AI_Models/huggingface"
+```
+
+### 3. How to Completely Remove All Downloaded Models
+If you want to clean up disk space or remove all models:
+```bash
+# Windows (PowerShell)
+Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\huggingface\hub\models--kyutai*"
+Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\huggingface\hub\models--hexgrad*"
+Remove-Item -Recurse -Force "$env:USERPROFILE\.cache\huggingface\hub\models--KittenML*"
+
+# macOS / Linux
+rm -rf ~/.cache/huggingface/hub/models--kyutai*
+rm -rf ~/.cache/huggingface/hub/models--hexgrad*
+rm -rf ~/.cache/huggingface/hub/models--KittenML*
+```
 
 ---
 
-## 📦 Installation & Setup Guide
+## 📦 Installation
 
-### 1. Install the Skill
 Install directly into your agent harness using `npx skills` (recommended):
 
 ```bash
 npx skills add Vachilla64/speak-skill
 ```
 
-Or clone into your local agent skills directory:
+Or clone into your local skill directory:
 
 ```bash
-# Claude Code / Codex / Antigravity
 git clone https://github.com/Vachilla64/speak-skill.git ~/.claude/skills/speak-skill
 ```
 
-### 2. The 3-Skill Modular Suite
-Once installed, your agent has access to 3 specialized skills:
-- **`/setup-speak`** — Interactive setup wizard: detects your OS, starts your local engine daemon, plays live voice auditions, and configures preferences.
-- **`speak`** — The main lean execution contract the agent calls automatically whenever it wants to tell you something.
-- **`/edit-speak`** — Quick settings modifier for voice, tone, frequency, and volume.
-
 ---
 
-## 🚀 Quickstart
+## 🚀 Quickstart & How It Works
 
-Because these are local AI models, they run 100% on your system.
-- **Model Storage**: Model weights are downloaded automatically on first launch and cached locally (e.g. `~/.cache/huggingface/hub`). They take between 25 MB (Kitten) and 200 MB (Pocket-TTS) of disk space. No cloud connection is used once downloaded.
+Once installed, there is **zero complex setup**. You don't need a manual:
 
-### Step 1: Run the Setup Wizard
-Inside your coding agent session, type:
-```text
-/setup-speak
-```
-The wizard will:
-1. Detect your host operating system (Windows, macOS, Linux).
-2. Guide you through launching your preferred local engine (e.g. `uvx pocket-tts serve`).
-3. **Audition candidate voices aloud** through your speakers so you hear each voice before choosing.
-4. Let you configure persona tone and notification frequency.
-5. Save your preferences to `.speak.md` in your project root or `~/.config/speak/config.md` globally.
-
-### Step 2: Automatic Vocalization
-Once configured, the agent reaches for `speak` automatically when completing tasks, reporting findings, or hitting errors:
-```text
-Agent: "Build complete. All 42 unit tests passed, ready to ship."
+### 1. Start Your Local TTS Server
+Run your favorite engine in the background:
+```bash
+# Pocket-TTS (Kyutai) — instant launch via uvx
+uvx pocket-tts serve
 ```
 
----
+### 2. Just Tell Your Agent What You Like
+Use `/edit-speak` or simply tell your agent directly in conversation:
+> *"Hey, speak to me in a formal tone only when builds fail."*  
+> *"Switch your voice to Michael and keep messages minimal."*  
+> *"Only notify me on completed test runs."*
 
-## 🎭 Personality and Customization
+The `/edit-speak` skill handles updating `.speak.md` automatically behind the scenes:
+- **Tone**: `conversational` | `formal` | `minimal`
+- **Frequency**: `completions-and-errors` | `all-milestones` | `errors-only` | `silent`
+- **Voice**: Pick any voice from your running engine (`eponine`, `michael`, `Jasper`, `af_heart`)
 
-Different LLMs have distinct communication styles and personalities:
-- **Gemini** tends to be communicative and detailed.
-- **OpenAI** models are conversational and chatty.
-- **Anthropic** models are often more reserved and concise.
-
-Your experience may vary depending on prompt and model, but you can tailor how your agent speaks using `/setup-speak` or `/edit-speak`:
-
-### 1. Tone Profiles
-- **`conversational`** (default): Friendly, first-person spoken updates (e.g. *"I've refactored the database schema, running the migration suite now."*).
-- **`formal`**: Objective, third-person status reports (e.g. *"Database schema refactoring complete. Executing migrations."*).
-- **`minimal`**: Clipped status notices under five words for minimal distraction (e.g. *"Migrations passed."*).
-
-### 2. Frequency Control
-- **`completions-and-errors`** (recommended): The agent only speaks when a task succeeds or when something breaks.
-- **`all-milestones`**: Speaks at task start, major intermediate checkpoints, and completion.
-- **`errors-only`**: Silent workhorse mode — only speaks up if a build, test, or script fails.
-- **`silent`**: Mutes voice output temporarily without uninstalling your setup.
-
-### 3. Task Filters
-Choose which specific tasks warrant voice notifications:
-- Builds and unit test suites
-- Code reviews and audits
-- Research and diagnostic findings
-- Multi-agent swarm milestones
-
-All settings are stored in `.speak.md` and can be adjusted at any time with `/edit-speak`.
+### 3. Automatic Ambient Vocalization
+Once configured, the agent reaches for `speak` in the background without blocking its work:
+```text
+Agent: "Build complete. All unit tests passed, ready to ship."
+```
 
 ---
 
@@ -138,23 +126,11 @@ speak-skill/
 │       └── SKILL.md
 ├── scripts/
 │   ├── speak.ps1          # Cross-process PowerShell audio launcher & lock manager
+│   ├── speak.sh           # Unix/macOS launcher with auto-start & background detachment
 │   └── stream_tts.py      # Python streaming player with heartbeat lease management
 ├── README.md
 └── LICENSE
 ```
-
----
-
-## 🤝 Contribution and Feedback
-
-Pull requests and community contributions are very welcome!
-Whether it's adding new local TTS engine backends, custom language packs, or integrations with other agent frameworks:
-- Check out `skills/setup-speak/SKILL.md` to see how engine options are registered.
-- Feel free to submit PRs or open issues with your feedback and voice suggestions.
-
-This skill was originally built for personal daily engineering use, but it proved so essential to flow and focus that I had to share it.
-
-A special thank you again to the researchers and open-source teams at **Kyutai Labs**, **hexgrad**, and **KittenML** for making high-quality, local, open-weight speech synthesis accessible on consumer hardware.
 
 ---
 
