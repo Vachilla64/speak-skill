@@ -1,11 +1,11 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
-stream_tts.py — Hybrid TTS player for pocket-tts.
+stream_tts.py â€” Hybrid TTS player for pocket-tts.
 
 Modes:
-  auto     (default) — short texts use streaming, long texts use safe mode
-  stream   — real-time streaming, lowest latency, may crackle if server is throttled
-  safe     — download full audio first, then play; no crackling, ~1-2s extra delay
+  auto     (default) â€” short texts use streaming, long texts use safe mode
+  stream   â€” real-time streaming, lowest latency, may crackle if server is throttled
+  safe     â€” download full audio first, then play; no crackling, ~1-2s extra delay
 
 Usage:
     uv run --with sounddevice --with requests --with numpy stream_tts.py \
@@ -54,16 +54,16 @@ def apply_volume(audio: np.ndarray, volume: float) -> np.ndarray:
 
 
 def play_safe_bytes(raw: bytes, volume=1.0):
-    """Play full WAV audio bytes atomically — zero underruns."""
+    """Play full WAV audio bytes atomically â€” zero underruns."""
     if not raw:
         print("[stream_tts] ERROR: Empty audio payload.", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(0)
 
     sample_rate = 24000
     data_offset, _ = find_wav_chunk(raw, b"data")
     if data_offset is None:
         print("[stream_tts] ERROR: No WAV data chunk.", file=sys.stderr)
-        sys.exit(1)
+        sys.exit(0)
 
     fmt_offset, _ = find_wav_chunk(raw, b"fmt ")
     if fmt_offset is not None and len(raw) >= fmt_offset + 8:
@@ -80,7 +80,7 @@ def play_safe_bytes(raw: bytes, volume=1.0):
 
 
 def play_safe(resp, volume=1.0) -> bytes:
-    """Download full audio then play atomically — returns raw WAV bytes."""
+    """Download full audio then play atomically â€” returns raw WAV bytes."""
     raw = b""
     for chunk in resp.iter_content(chunk_size=HTTP_CHUNK_SIZE):
         if chunk:
@@ -243,7 +243,7 @@ def acquire_lock_and_start_heartbeat(lock_file: str, agent_name: str) -> threadi
                         try: os.remove(lock_file)
                         except OSError: pass
             except (json.JSONDecodeError, OSError):
-                # Transient file read/write lock contention — sleep & retry without deleting lock!
+                # Transient file read/write lock contention â€” sleep & retry without deleting lock!
                 time.sleep(retry_interval)
                 continue
             except Exception:
@@ -344,7 +344,7 @@ def main():
                 save_outfile(resp.content, outfile)
             except Exception as e:
                 print(f"[speak] Error generating silent audio: {e}", file=sys.stderr)
-                sys.exit(1)
+                sys.exit(0)
         sys.exit(0)
 
     stop_event = None
@@ -368,7 +368,7 @@ def main():
             stop_event.set()
             try: os.remove(lock_file)
             except OSError: pass
-        sys.exit(1)
+        sys.exit(0)
 
     raw_audio = None
     if mode == "safe":
@@ -396,4 +396,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 
