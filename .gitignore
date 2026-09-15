@@ -1,0 +1,8 @@
+﻿node_modules/
+.venv/
+*.pyc
+__pycache__/
+*.wav
+*.mp3
+.speak.lock
+speak.lock
