@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     Streams and plays TTS audio from pocket-tts in real-time, with a
     distributed heartbeat lock to prevent multiple agents speaking at once.

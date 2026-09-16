@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """
 stream_tts.py â€” Hybrid TTS player for pocket-tts.
 
@@ -18,6 +18,7 @@ import struct
 import sys
 import threading
 import queue
+import shutil
 import numpy as np
 import requests
 import sounddevice as sd
@@ -42,15 +43,14 @@ def find_wav_chunk(buf: bytes, chunk_id: bytes):
 
 
 def apply_volume(audio: np.ndarray, volume: float) -> np.ndarray:
-    """Apply volume multiplier with tanh soft-clipping to prevent harsh distortion."""
-    if volume == 1.0:
+    """Apply volume scaling with smooth tanh saturation (zero boundary discontinuities)."""
+    if volume == 1.0 or len(audio) == 0:
         return audio
     audio_f = audio.astype(np.float32) * volume
     peak = 32767.0
-    mask = np.abs(audio_f) > peak
-    if np.any(mask):
-        audio_f[mask] = peak * np.tanh(audio_f[mask] / peak)
-    return audio_f.astype(np.int16)
+    # Continuous saturation: smoothly compresses high peaks to +/- 32767 without threshold cliff
+    scaled = np.tanh(audio_f / peak) * peak
+    return scaled.astype(np.int16)
 
 
 def play_safe_bytes(raw: bytes, volume=1.0):
@@ -263,7 +263,9 @@ def acquire_lock_and_start_heartbeat(lock_file: str, agent_name: str) -> threadi
             time.sleep(retry_interval)
 
     stop_event = threading.Event()
+    acquired_at_iso = datetime.now(timezone.utc).isoformat()
     def heartbeat():
+        consecutive_errors = 0
         while not stop_event.is_set():
             time.sleep(5)
             if not os.path.exists(lock_file):
@@ -271,41 +273,78 @@ def acquire_lock_and_start_heartbeat(lock_file: str, agent_name: str) -> threadi
             try:
                 data = {
                     "agent": agent_name,
-                    "acquired_at": datetime.now(timezone.utc).isoformat(),
+                    "acquired_at": acquired_at_iso,
                     "heartbeat": datetime.now(timezone.utc).isoformat()
                 }
                 atomic_write_json(lock_file, data)
+                consecutive_errors = 0
             except Exception:
-                break
+                consecutive_errors += 1
+                if consecutive_errors >= 3:
+                    break
+                continue
 
     hb_thread = threading.Thread(target=heartbeat, daemon=True)
     hb_thread.start()
     return stop_event
 
 
-def ensure_server_online(url: str) -> bool:
-    """Check TTS server health; auto-start pocket-tts serve in background if offline."""
-    health_url = url.replace("/tts", "/health")
-    for attempt in range(3):
+def ensure_server_online(url: str, max_wait_sec: int = 15) -> bool:
+    """Check TTS server health; auto-start if offline and poll until ready."""
+    health_url = url.replace("/tts", "/health").replace("/v1/audio/speech", "/health")
+    try:
+        resp = requests.get(health_url, timeout=1.0)
+        if resp.status_code == 200:
+            return True
+    except Exception:
+        pass
+
+    creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
+    cmd = []
+    if shutil.which("pocket-tts"):
+        cmd = ["pocket-tts", "serve"]
+    elif shutil.which("uvx"):
+        cmd = ["uvx", "pocket-tts", "serve"]
+    else:
+        print("[speak] Error: Neither pocket-tts nor uvx found on PATH.", file=sys.stderr)
+        return False
+
+    env = os.environ.copy()
+    env["HF_HUB_OFFLINE"] = "1"
+    env["TRANSFORMERS_OFFLINE"] = "1"
+
+    try:
+        subprocess.Popen(cmd, creationflags=creationflags, env=env)
+    except Exception as e:
+        print(f"[speak] Failed to spawn {cmd[0]}: {e}", file=sys.stderr)
+        return False
+
+    deadline = time.time() + max_wait_sec
+    while time.time() < deadline:
+        time.sleep(0.5)
         try:
-            resp = requests.get(health_url, timeout=2)
+            resp = requests.get(health_url, timeout=1.0)
             if resp.status_code == 200:
                 return True
         except Exception:
-            pass
+            continue
 
-        if attempt == 0:
-            try:
-                creationflags = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0
-                subprocess.Popen(["pocket-tts", "serve"], creationflags=creationflags)
-                time.sleep(2)
-            except Exception as e:
-                print(f"[speak] Could not auto-start pocket-tts serve: {e}", file=sys.stderr)
-                break
-        else:
-            time.sleep(1)
-
+    print(f"[speak] Server failed to become healthy within {max_wait_sec}s.", file=sys.stderr)
     return False
+
+
+def request_speech(url: str, text: str, voice: str, stream: bool = True):
+    """Unified speech synthesis adapter for Pocket-TTS and Kokoro-FastAPI."""
+    if ":8880" in url or "v1/audio/speech" in url:
+        payload = {
+            "model": "kokoro",
+            "input": text,
+            "voice": voice
+        }
+        headers = {"Content-Type": "application/json"}
+        return requests.post(url, json=payload, headers=headers, stream=stream, timeout=60)
+    else:
+        return requests.post(url, data={"text": text, "voice_url": voice}, stream=stream, timeout=60)
 
 
 def main():
@@ -339,7 +378,7 @@ def main():
     if noplay:
         if outfile:
             try:
-                resp = requests.post(url, data={"text": text, "voice_url": voice}, timeout=60)
+                resp = request_speech(url, text, voice, stream=False)
                 resp.raise_for_status()
                 save_outfile(resp.content, outfile)
             except Exception as e:
@@ -355,44 +394,38 @@ def main():
         mode = "safe" if len(text) > AUTO_MODE_THRESHOLD else "stream"
 
     try:
-        resp = requests.post(
-            url,
-            data={"text": text, "voice_url": voice},
-            stream=True,
-            timeout=60,
-        )
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        print(f"[speak] Error requesting speech from server: {e}", file=sys.stderr)
+        try:
+            resp = request_speech(url, text, voice, stream=True)
+            resp.raise_for_status()
+        except requests.RequestException as e:
+            print(f"[speak] Error requesting speech from server: {e}", file=sys.stderr)
+            sys.exit(0)
+
+        raw_audio = None
+        if mode == "safe":
+            raw_audio = play_safe(resp, volume=volume)
+        else:
+            play_stream(resp, volume=volume)
+
+        # If OutFile was specified, save audio to disk even when playback was active
+        if outfile:
+            if raw_audio is None:
+                try:
+                    r2 = request_speech(url, text, voice, stream=False)
+                    if r2.status_code == 200:
+                        raw_audio = r2.content
+                except Exception:
+                    pass
+            if raw_audio:
+                save_outfile(raw_audio, outfile)
+    finally:
         if stop_event:
             stop_event.set()
-            try: os.remove(lock_file)
-            except OSError: pass
-        sys.exit(0)
-
-    raw_audio = None
-    if mode == "safe":
-        raw_audio = play_safe(resp, volume=volume)
-    else:
-        play_stream(resp, volume=volume)
-
-    # If OutFile was specified, save audio to disk even when playback was active
-    if outfile:
-        if raw_audio is None:
-            # For stream mode, re-fetch or read raw payload if needed
             try:
-                r2 = requests.post(url, data={"text": text, "voice_url": voice}, timeout=60)
-                if r2.status_code == 200:
-                    raw_audio = r2.content
-            except Exception:
+                if os.path.exists(lock_file):
+                    os.remove(lock_file)
+            except OSError:
                 pass
-        if raw_audio:
-            save_outfile(raw_audio, outfile)
-
-    if stop_event:
-        stop_event.set()
-        try: os.remove(lock_file)
-        except OSError: pass
 
 if __name__ == "__main__":
     main()

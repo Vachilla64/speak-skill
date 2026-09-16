@@ -1,4 +1,4 @@
-﻿---
+---
 name: setup-speak
 description: Interactive wizard to install a local TTS engine, audition voices, and configure agent speech preferences.
 disable-model-invocation: true
@@ -36,24 +36,39 @@ Provide exact, copy-pasteable commands based on the selected engine and detected
 ### Option A: Pocket-TTS (Recommended for Conversational Identity)
 
 ```bash
-# Instant launch via uvx (zero permanent installation overhead)
-uvx pocket-tts serve
+# Permanent local installation with PATH executable (avoids ephemeral redownloads)
+uv tool install pocket-tts
+
+# Launch server (or let the speak driver auto-start it in the background)
+pocket-tts serve
 ```
 
 Verify the server is healthy by querying `http://localhost:8000/health`.
 
-### Option B: Kokoro-FastAPI (Docker)
+### Option B: Kokoro-82M (hexgrad)
 
+**If using Docker (Containerized Server):**
 ```bash
-# CPU container
-docker run -d --name kokoro-tts -p 8880:8880 ghcr.io/remsky/kokoro-fastapi-cpu:latest
+# CPU container with persistent model and voice caching volumes
+docker run -d --name kokoro-tts -p 8880:8880 \
+  -v kokoro-models:/app/api/src/models \
+  -v kokoro-voices:/app/api/src/voices \
+  --restart unless-stopped \
+  ghcr.io/remsky/kokoro-fastapi-cpu:latest
 ```
-
 Verify by querying `http://localhost:8880/health`.
+
+**If not using Docker (Pure ONNX Runtime):**
+```bash
+# Zero-Docker, Zero-PyTorch ONNX installation
+pip install kokoro-onnx soundfile
+```
+*(Requires `espeak-ng`: `brew install espeak-ng` on macOS, `sudo apt install espeak-ng` on Linux, `winget install eSpeak-NG.eSpeak-NG` on Windows).*
 
 ### Option C: Kitten TTS (Pure ONNX)
 
 ```bash
+# Zero-Docker, Zero-PyTorch ultra-lightweight installation (<25 MB)
 pip install https://github.com/KittenML/KittenTTS/releases/download/0.8.1/kittentts-0.8.1-py3-none-any.whl soundfile onnxruntime
 ```
 

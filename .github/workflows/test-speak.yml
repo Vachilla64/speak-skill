@@ -1,0 +1,57 @@
+name: Test Speak Skill Clean Environment
+
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  test-matrix:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: false
+
+      - name: Install Linux audio library
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libportaudio2 alsa-utils
+
+      - name: Start Pocket-TTS server (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          uvx pocket-tts serve > /dev/null 2>&1 &
+          sleep 4
+          curl -s http://localhost:8000/health
+
+      - name: Start Pocket-TTS server (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Start-Process -FilePath "uvx" -ArgumentList "pocket-tts", "serve" -WindowStyle Hidden
+          Start-Sleep -Seconds 4
+          (Invoke-RestMethod -Uri "http://localhost:8000/health").status
+
+      - name: Run Speak Script (Linux / macOS)
+        if: runner.os != 'Windows'
+        run: |
+          bash scripts/speak.sh "Testing speech synthesis in a fresh environment." "eponine" "http://localhost:8000/tts" "safe" "1.5" "ci-agent" "output.wav" "1"
+          test -f output.wav
+          test -s output.wav
+
+      - name: Run Speak Script (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          powershell -ExecutionPolicy Bypass -File "scripts/speak.ps1" -Text "Testing speech synthesis in a fresh environment." -OutFile "output.wav" -NoPlay
+          if (-not (Test-Path "output.wav")) { throw "output.wav was not generated" }
+          if ((Get-Item "output.wav").Length -lt 1000) { throw "Audio file is empty or corrupted" }
