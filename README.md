@@ -9,12 +9,8 @@ Agents can vocalize milestone updates, completion alerts, questions, plans, and 
 
 You have to experience it to understand the value — give it a try!
 
-A big thanks to the open-source creators:
-- **[Kyutai Labs](https://kyutai.org)** ([GitHub](https://github.com/kyutai-labs/pocket-tts)) — Pocket-TTS and Mimi audio codec.
-- **[hexgrad](https://github.com/hexgrad/kokoro)** ([Official Demo](https://hf.co/spaces/hexgrad/Kokoro-TTS) • [Hugging Face](https://huggingface.co/hexgrad/Kokoro-82M)) — Kokoro-82M.
-- **[KittenML](https://kittenml.com)** ([GitHub](https://github.com/KittenML/KittenTTS) • [Web Demo](https://huggingface.co/spaces/KittenML/KittenTTS)) — Kitten TTS.
+Contribution and expansions are very welcome!
 
----
 
 ## 📦 Installation
 
@@ -34,7 +30,7 @@ git clone https://github.com/Vachilla64/speak-skill.git ~/.claude/skills/speak-s
 
 ## Quickstart & How It Works
 
-Once installed, `speak-skill` is completely **plug-and-play**. You don't need to manually manage background terminals or start servers by hand.
+Once installed, `speak-skill` is completely plug and play!
 
 ### 1. Run the One-Time Setup Wizard
 Run `/setup-speak` in your agent harness:
@@ -287,6 +283,19 @@ speak-skill/
 ├── README.md
 └── LICENSE
 ```
+
+---
+
+## A big thaanks <3
+
+A big thanks to the open-source creators:
+- **[Kyutai Labs](https://kyutai.org)** ([GitHub](https://github.com/kyutai-labs/pocket-tts)) — Pocket-TTS and Mimi audio codec.
+- **[hexgrad](https://github.com/hexgrad/kokoro)** ([Official Demo](https://hf.co/spaces/hexgrad/Kokoro-TTS) • [Hugging Face](https://huggingface.co/hexgrad/Kokoro-82M)) — Kokoro-82M.
+- **[KittenML](https://kittenml.com)** ([GitHub](https://github.com/KittenML/KittenTTS) • [Web Demo](https://huggingface.co/spaces/KittenML/KittenTTS)) — Kitten TTS.
+
+
+I currently main Kyutai, but (Kitten TTS 0.9)[https://filename-label-mid-break.trycloudflare.com/] will be out in a few days and boy does it look exciting
+I'll update this skill with the emotional tags as soon as the model is out!
 
 ---
 
